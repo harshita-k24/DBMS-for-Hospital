@@ -1,70 +1,86 @@
-import sqlite3
-import csv
+!pip install Faker
+import pandas as pd
+from faker import Faker
+import random
 
-conn = sqlite3.connect("hospital_management.db")
-cursor = conn.cursor()
+fake = Faker("en_IN")
+TOTAL_RECORDS = 1000
 
-tables = [
-    "Patient",
-    "Department",
-    "Doctor",
-    "Appointment",
-    "Prescription",
-    "Billing"
-]
+# ================= PATIENT TABLE (WITH READMISSION) =================
+patients = []
+for i in range(1, TOTAL_RECORDS + 1):
+    readmission = random.choices(["Yes", "No"], weights=[20, 80])[0]
 
+    patients.append({
+        "PatientID": i,
+        "Name": fake.name(),
+        "DateOfBirth": fake.date_of_birth(minimum_age=1, maximum_age=90),
+        "Gender": random.choice(["Male", "Female", "Other"]),
+        "Address": fake.address().replace("\n", ", "),
+        "PhoneNumber": fake.phone_number(),
+        "Email": fake.email(),
+        "ReadmissionStatus": readmission
+    })
 
-# Function: Export Table to CSV
+patients_df = pd.DataFrame(patients)
 
-def export_to_csv(table_name):
-    cursor.execute(f"SELECT * FROM {table_name}")
-    rows = cursor.fetchall()
+# ================= DEPARTMENTS =================
+departments_df = pd.DataFrame([
+    {"DepartmentID": 1, "DepartmentName": "Cardiology", "Location": "Block A"},
+    {"DepartmentID": 2, "DepartmentName": "Neurology", "Location": "Block B"},
+    {"DepartmentID": 3, "DepartmentName": "Orthopedics", "Location": "Block C"},
+    {"DepartmentID": 4, "DepartmentName": "Pediatrics", "Location": "Block D"},
+    {"DepartmentID": 5, "DepartmentName": "General Medicine", "Location": "Block E"}
+])
 
-    column_names = [description[0] for description in cursor.description]
+# ================= DOCTORS =================
+doctors_df = pd.DataFrame([{
+    "DoctorID": i,
+    "Name": fake.name(),
+    "Specialization": random.choice(departments_df["DepartmentName"]),
+    "PhoneNumber": fake.phone_number(),
+    "Email": fake.email(),
+    "DepartmentID": random.randint(1, 5)
+} for i in range(1, TOTAL_RECORDS + 1)])
 
-    with open(f"{table_name}.csv", "w", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        writer.writerow(column_names)
-        writer.writerows(rows)
+# ================= APPOINTMENTS =================
+appointments_df = pd.DataFrame([{
+    "AppointmentID": i,
+    "PatientID": random.randint(1, TOTAL_RECORDS),
+    "DoctorID": random.randint(1, TOTAL_RECORDS),
+    "AppointmentDate": fake.date_this_year(),
+    "AppointmentTime": fake.time(),
+    "Status": random.choice(["Scheduled", "Completed", "Cancelled"])
+} for i in range(1, TOTAL_RECORDS + 1)])
 
-    print(f"{table_name}.csv exported successfully")
+# ================= PRESCRIPTIONS =================
+prescriptions_df = pd.DataFrame([{
+    "PrescriptionID": i,
+    "AppointmentID": random.randint(1, TOTAL_RECORDS),
+    "MedicationDetails": random.choice([
+        "Paracetamol", "Ibuprofen", "Amoxicillin",
+        "Metformin", "Azithromycin"
+    ]),
+    "Dosage": random.choice(["1-0-1", "1-1-1", "0-1-0"]),
+    "Duration": random.choice(["5 days", "7 days", "10 days"])
+} for i in range(1, TOTAL_RECORDS + 1)])
 
+# ================= BILLING =================
+billing_df = pd.DataFrame([{
+    "BillID": i,
+    "PatientID": random.randint(1, TOTAL_RECORDS),
+    "Amount": random.randint(300, 20000),
+    "BillDate": fake.date_this_year(),
+    "PaymentStatus": random.choice(["Paid", "Unpaid", "Pending"])
+} for i in range(1, TOTAL_RECORDS + 1)])
 
+# ================= WRITE EXCEL =================
+with pd.ExcelWriter("Hospital_Management_System_Data.xlsx", engine="openpyxl") as writer:
+    patients_df.to_excel(writer, "Patients", index=False)
+    doctors_df.to_excel(writer, "Doctors", index=False)
+    departments_df.to_excel(writer, "Departments", index=False)
+    appointments_df.to_excel(writer, "Appointments", index=False)
+    prescriptions_df.to_excel(writer, "Prescriptions", index=False)
+    billing_df.to_excel(writer, "Billing", index=False)
 
-
-# Function: Display Table in Tabular Format
-
-def display_table(table_name):
-    cursor.execute(f"SELECT * FROM {table_name}")
-    rows = cursor.fetchall()
-    column_names = [description[0] for description in cursor.description]
-
-    print(f"\n================ {table_name.upper()} TABLE ================\n")
-
-
-
-    # Calculate column widths
-    col_widths = [len(col) for col in column_names]
-    for row in rows:
-        for i, value in enumerate(row):
-            col_widths[i] = max(col_widths[i], len(str(value)))
-
-
-
-
-    # Print header
-    header = " | ".join(col.ljust(col_widths[i]) for i, col in enumerate(column_names))
-    print(header)
-    print("-" * len(header))
-
-
-
-    # Print rows
-    for row in rows:
-        print(" | ".join(str(value).ljust(col_widths[i]) for i, value in enumerate(row)))
-
-for table in tables:
-    export_to_csv(table)
-    display_table(table)
-
-conn.close()
+print("File created WITH ReadmissionStatus column")
